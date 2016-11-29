@@ -1,7 +1,9 @@
 [package]
 name = "timerfd"
+description = "An implementation of the linux kernel's timerfd interface"
+license = "MIT"
 version = "0.1.0"
 authors = ["main() <main@ehvag.de>"]
 
 [dependencies]
-libc = "0.2.17"
+libc = "0.2.*"
