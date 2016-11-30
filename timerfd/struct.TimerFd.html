@@ -47,34 +47,41 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a id='src-213' class='srclink' href='../src/timerfd/src/lib.rs.html#62' title='goto source code'>[src]</a></span></h1>
+               </span><a id='src-214' class='srclink' href='../src/timerfd/src/lib.rs.html#87' title='goto source code'>[src]</a></span></h1>
 <pre class='rust struct'>pub struct TimerFd(_);</pre><div class='docblock'><p>Represents a timerfd.</p>
 
 <p>See also <a href="http://man7.org/linux/man-pages/man2/timerfd_create.2.html"><code>timerfd_create(2)</code></a>.</p>
-</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../timerfd/struct.TimerFd.html' title='timerfd::TimerFd'>TimerFd</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-218' class='srclink' href='../src/timerfd/src/lib.rs.html#72-129' title='goto source code'>[src]</a></span></h3>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../timerfd/struct.TimerFd.html' title='timerfd::TimerFd'>TimerFd</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-219' class='srclink' href='../src/timerfd/src/lib.rs.html#97-178' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='method.new_custom' class='method'><span id='new_custom.v' class='invisible'><code>fn <a href='#method.new_custom' class='fnname'>new_custom</a>(realtime_clock: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>, nonblocking: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>, cloexec: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>IoResult</a>&lt;<a class='struct' href='../timerfd/struct.TimerFd.html' title='timerfd::TimerFd'>TimerFd</a>&gt;</code></span></h4>
 <div class='docblock'><p>Creates a new <code>TimerFd</code>.</p>
 
 <p>By default, it uses the monotonic clock, is blocking and does not close on exec.
 The parameters allow you to change that.</p>
+
+<h1 id='errors' class='section-header'><a href='#errors'>Errors</a></h1>
+<p>On Linux 2.6.26 and earlier, nonblocking and cloexec are not supported and setting them
+will return an error of kind <code>ErrorKind::InvalidInput</code>.</p>
+
+<p>This can also fail in various cases of resource exhaustion. Please check
+<code>timerfd_create(2)</code> for details.</p>
 </div><h4 id='method.new' class='method'><span id='new.v' class='invisible'><code>fn <a href='#method.new' class='fnname'>new</a>() -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>IoResult</a>&lt;<a class='struct' href='../timerfd/struct.TimerFd.html' title='timerfd::TimerFd'>TimerFd</a>&gt;</code></span></h4>
 <div class='docblock'><p>Creates a new <code>TimerFd</code> with default settings.</p>
 
 <p>Use <code>new_custom</code> to specify custom settings.</p>
-</div><h4 id='method.set_state' class='method'><span id='set_state.v' class='invisible'><code>fn <a href='#method.set_state' class='fnname'>set_state</a>(&amp;mut self, state: <a class='enum' href='../timerfd/enum.TimerState.html' title='timerfd::TimerState'>TimerState</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>IoResult</a>&lt;<a class='enum' href='../timerfd/enum.TimerState.html' title='timerfd::TimerState'>TimerState</a>&gt;</code></span></h4>
+</div><h4 id='method.set_state' class='method'><span id='set_state.v' class='invisible'><code>fn <a href='#method.set_state' class='fnname'>set_state</a>(&amp;mut self, state: <a class='enum' href='../timerfd/enum.TimerState.html' title='timerfd::TimerState'>TimerState</a>) -&gt; <a class='enum' href='../timerfd/enum.TimerState.html' title='timerfd::TimerState'>TimerState</a></code></span></h4>
 <div class='docblock'><p>Sets this timerfd to a given <code>TimerState</code> and returns the old state.</p>
-</div><h4 id='method.get_state' class='method'><span id='get_state.v' class='invisible'><code>fn <a href='#method.get_state' class='fnname'>get_state</a>(&amp;self) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>IoResult</a>&lt;<a class='enum' href='../timerfd/enum.TimerState.html' title='timerfd::TimerState'>TimerState</a>&gt;</code></span></h4>
+</div><h4 id='method.get_state' class='method'><span id='get_state.v' class='invisible'><code>fn <a href='#method.get_state' class='fnname'>get_state</a>(&amp;self) -&gt; <a class='enum' href='../timerfd/enum.TimerState.html' title='timerfd::TimerState'>TimerState</a></code></span></h4>
 <div class='docblock'><p>Returns the current <code>TimerState</code>.</p>
-</div><h4 id='method.read' class='method'><span id='read.v' class='invisible'><code>fn <a href='#method.read' class='fnname'>read</a>(&amp;mut self) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>IoResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a>&gt;</code></span></h4>
+</div><h4 id='method.read' class='method'><span id='read.v' class='invisible'><code>fn <a href='#method.read' class='fnname'>read</a>(&amp;mut self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a></code></span></h4>
 <div class='docblock'><p>Read from this timerfd.</p>
 
 <p>Returns the number of timer expirations since the last read.
-If that number is zero, this function blocks until the timer expires
-(or returns an error if it&#39;s nonblocking).</p>
-</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/std/sys/ext/io/trait.AsRawFd.html' title='std::sys::ext::io::AsRawFd'>AsRawFd</a> for <a class='struct' href='../timerfd/struct.TimerFd.html' title='timerfd::TimerFd'>TimerFd</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-242' class='srclink' href='../src/timerfd/src/lib.rs.html#131-135' title='goto source code'>[src]</a></span></h3>
+If this timerfd is operating in blocking mode (the default), it will
+not return zero but instead block until the timer has expired at least once.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/std/sys/ext/io/trait.AsRawFd.html' title='std::sys::ext::io::AsRawFd'>AsRawFd</a> for <a class='struct' href='../timerfd/struct.TimerFd.html' title='timerfd::TimerFd'>TimerFd</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-248' class='srclink' href='../src/timerfd/src/lib.rs.html#180-184' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='method.as_raw_fd' class='method'><span id='as_raw_fd.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/std/sys/ext/io/trait.AsRawFd.html#tymethod.as_raw_fd' class='fnname'>as_raw_fd</a>(&amp;self) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/sys/ext/io/type.RawFd.html' title='std::sys::ext::io::RawFd'>RawFd</a></code></span></h4>
 <div class='docblock'><p>Extracts the raw file descriptor. <a href="https://doc.rust-lang.org/nightly/std/sys/ext/io/trait.AsRawFd.html#tymethod.as_raw_fd">Read more</a></p>
-</div></div><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../timerfd/struct.TimerFd.html' title='timerfd::TimerFd'>TimerFd</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-245' class='srclink' href='../src/timerfd/src/lib.rs.html#137-143' title='goto source code'>[src]</a></span></h3>
+</div></div><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../timerfd/struct.TimerFd.html' title='timerfd::TimerFd'>TimerFd</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-251' class='srclink' href='../src/timerfd/src/lib.rs.html#186-192' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='method.drop' class='method'><span id='drop.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></span></h4>
 <div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
 </div></div></section>

@@ -47,23 +47,45 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a id='src-0' class='srclink' href='../src/timerfd/src/lib.rs.html#1-143' title='goto source code'>[src]</a></span></h1>
-<div class='docblock'><p>This crate implements the linux timerfd interface.</p>
+               </span><a id='src-0' class='srclink' href='../src/timerfd/src/lib.rs.html#1-192' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>A rust interface to the Linux kernel&#39;s timerfd API.</p>
 
 <h1 id='example' class='section-header'><a href='#example'>Example</a></h1>
 <pre class='rust rust-example-rendered'>
 <span class='kw'>use</span> <span class='ident'>timerfd</span>::{<span class='ident'>TimerFd</span>, <span class='ident'>TimerState</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>time</span>::<span class='ident'>Duration</span>;
 
+<span class='comment'>// Create a new timerfd</span>
+<span class='comment'>// (unwrap is actually fine here for most usecases)</span>
 <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>tfd</span> <span class='op'>=</span> <span class='ident'>TimerFd</span>::<span class='ident'>new</span>().<span class='ident'>unwrap</span>();
-<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>tfd</span>.<span class='ident'>get_state</span>().<span class='ident'>unwrap</span>(), <span class='ident'>TimerState</span>::<span class='ident'>Disarmed</span>);
-<span class='ident'>tfd</span>.<span class='ident'>set_state</span>(<span class='ident'>TimerState</span>::<span class='ident'>Oneshot</span>(<span class='ident'>Duration</span>::<span class='ident'>new</span>(<span class='number'>1</span>, <span class='number'>0</span>))).<span class='ident'>unwrap</span>();
-<span class='kw'>match</span> <span class='ident'>tfd</span>.<span class='ident'>get_state</span>().<span class='ident'>unwrap</span>() {
+
+<span class='comment'>// The timer is initially disarmed</span>
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>tfd</span>.<span class='ident'>get_state</span>(), <span class='ident'>TimerState</span>::<span class='ident'>Disarmed</span>);
+
+<span class='comment'>// Set the timer</span>
+<span class='ident'>tfd</span>.<span class='ident'>set_state</span>(<span class='ident'>TimerState</span>::<span class='ident'>Oneshot</span>(<span class='ident'>Duration</span>::<span class='ident'>new</span>(<span class='number'>1</span>, <span class='number'>0</span>)));
+
+<span class='comment'>// Observe that the timer is now set</span>
+<span class='kw'>match</span> <span class='ident'>tfd</span>.<span class='ident'>get_state</span>() {
     <span class='ident'>TimerState</span>::<span class='ident'>Oneshot</span>(<span class='ident'>d</span>) <span class='op'>=&gt;</span> <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;Remaining: {:?}&quot;</span>, <span class='ident'>d</span>),
     _ <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(),
 }
-<span class='ident'>tfd</span>.<span class='ident'>read</span>().<span class='ident'>unwrap</span>();
-<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>tfd</span>.<span class='ident'>get_state</span>().<span class='ident'>unwrap</span>(), <span class='ident'>TimerState</span>::<span class='ident'>Disarmed</span>);<a class='test-arrow' target='_blank' href=''>Run</a></pre>
+
+<span class='comment'>// Wait for the remaining time</span>
+<span class='ident'>tfd</span>.<span class='ident'>read</span>();
+
+<span class='comment'>// It was a oneshot timer, so it&#39;s now disarmed</span>
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>tfd</span>.<span class='ident'>get_state</span>(), <span class='ident'>TimerState</span>::<span class='ident'>Disarmed</span>);<a class='test-arrow' target='_blank' href=''>Run</a></pre>
+
+<h1 id='usage' class='section-header'><a href='#usage'>Usage</a></h1>
+<p>Unfortunately, this example can&#39;t show why you would use
+timerfd in the first place: Because it creates a file descriptor
+that you can monitor with <code>select(2)</code>, <code>poll(2)</code> and <code>epoll(2)</code>.</p>
+
+<p>In other words, the only advantage this offers over any other
+timer implementation is that it implements the <code>AsRawFd</code> trait.</p>
+
+<p>The file descriptor becomes ready/readable whenever the timer expires.</p>
 </div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
                        <tr class=' module-item'>

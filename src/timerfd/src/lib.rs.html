@@ -185,8 +185,57 @@
 <span id="141">141</span>
 <span id="142">142</span>
 <span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
 </pre><pre class='rust '>
-<span class='doccomment'>//! This crate implements the linux timerfd interface.</span>
+<span class='doccomment'>//! A rust interface to the Linux kernel&#39;s timerfd API.</span>
 <span class='doccomment'>//!</span>
 <span class='doccomment'>//! # Example</span>
 <span class='doccomment'>//!</span>
@@ -194,22 +243,47 @@
 <span class='doccomment'>//! use timerfd::{TimerFd, TimerState};</span>
 <span class='doccomment'>//! use std::time::Duration;</span>
 <span class='doccomment'>//!</span>
+<span class='doccomment'>//! // Create a new timerfd</span>
+<span class='doccomment'>//! // (unwrap is actually fine here for most usecases)</span>
 <span class='doccomment'>//! let mut tfd = TimerFd::new().unwrap();</span>
-<span class='doccomment'>//! assert_eq!(tfd.get_state().unwrap(), TimerState::Disarmed);</span>
-<span class='doccomment'>//! tfd.set_state(TimerState::Oneshot(Duration::new(1, 0))).unwrap();</span>
-<span class='doccomment'>//! match tfd.get_state().unwrap() {</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! // The timer is initially disarmed</span>
+<span class='doccomment'>//! assert_eq!(tfd.get_state(), TimerState::Disarmed);</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! // Set the timer</span>
+<span class='doccomment'>//! tfd.set_state(TimerState::Oneshot(Duration::new(1, 0)));</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! // Observe that the timer is now set</span>
+<span class='doccomment'>//! match tfd.get_state() {</span>
 <span class='doccomment'>//!     TimerState::Oneshot(d) =&gt; println!(&quot;Remaining: {:?}&quot;, d),</span>
 <span class='doccomment'>//!     _ =&gt; unreachable!(),</span>
 <span class='doccomment'>//! }</span>
-<span class='doccomment'>//! tfd.read().unwrap();</span>
-<span class='doccomment'>//! assert_eq!(tfd.get_state().unwrap(), TimerState::Disarmed);</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! // Wait for the remaining time</span>
+<span class='doccomment'>//! tfd.read();</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! // It was a oneshot timer, so it&#39;s now disarmed</span>
+<span class='doccomment'>//! assert_eq!(tfd.get_state(), TimerState::Disarmed);</span>
 <span class='doccomment'>//! ```</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! # Usage</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! Unfortunately, this example can&#39;t show why you would use</span>
+<span class='doccomment'>//! timerfd in the first place: Because it creates a file descriptor</span>
+<span class='doccomment'>//! that you can monitor with `select(2)`, `poll(2)` and `epoll(2)`.</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! In other words, the only advantage this offers over any other</span>
+<span class='doccomment'>//! timer implementation is that it implements the `AsRawFd` trait.</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! The file descriptor becomes ready/readable whenever the timer expires.</span>
+
 
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>libc</span>;
 
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>os</span>::<span class='ident'>unix</span>::<span class='ident'>prelude</span>::<span class='op'>*</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>time</span>::<span class='ident'>Duration</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::<span class='prelude-ty'>Result</span> <span class='kw'>as</span> <span class='ident'>IoResult</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::<span class='ident'>ErrorKind</span>;
 
 <span class='kw'>extern</span> <span class='string'>&quot;C&quot;</span> {
     <span class='kw'>fn</span> <span class='ident'>timerfd_create</span>(<span class='ident'>clockid</span>: <span class='ident'>libc</span>::<span class='ident'>c_int</span>, <span class='ident'>flags</span>: <span class='ident'>libc</span>::<span class='ident'>c_int</span>) <span class='op'>-&gt;</span> <span class='ident'>RawFd</span>;
@@ -262,6 +336,14 @@
     <span class='doccomment'>///</span>
     <span class='doccomment'>/// By default, it uses the monotonic clock, is blocking and does not close on exec.</span>
     <span class='doccomment'>/// The parameters allow you to change that.</span>
+    <span class='doccomment'>///</span>
+    <span class='doccomment'>/// # Errors</span>
+    <span class='doccomment'>///</span>
+    <span class='doccomment'>/// On Linux 2.6.26 and earlier, nonblocking and cloexec are not supported and setting them</span>
+    <span class='doccomment'>/// will return an error of kind `ErrorKind::InvalidInput`.</span>
+    <span class='doccomment'>///</span>
+    <span class='doccomment'>/// This can also fail in various cases of resource exhaustion. Please check</span>
+    <span class='doccomment'>/// `timerfd_create(2)` for details.</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new_custom</span>(<span class='ident'>realtime_clock</span>: <span class='ident'>bool</span>, <span class='ident'>nonblocking</span>: <span class='ident'>bool</span>, <span class='ident'>cloexec</span>: <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='ident'>IoResult</span><span class='op'>&lt;</span><span class='ident'>TimerFd</span><span class='op'>&gt;</span> {
         <span class='kw'>let</span> <span class='ident'>clock</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>realtime_clock</span> { <span class='ident'>libc</span>::<span class='ident'>CLOCK_REALTIME</span> } <span class='kw'>else</span> { <span class='ident'>libc</span>::<span class='ident'>CLOCK_MONOTONIC</span> };
 
@@ -285,34 +367,50 @@
     }
 
     <span class='doccomment'>/// Sets this timerfd to a given `TimerState` and returns the old state.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_state</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>state</span>: <span class='ident'>TimerState</span>) <span class='op'>-&gt;</span> <span class='ident'>IoResult</span><span class='op'>&lt;</span><span class='ident'>TimerState</span><span class='op'>&gt;</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_state</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>state</span>: <span class='ident'>TimerState</span>) <span class='op'>-&gt;</span> <span class='ident'>TimerState</span> {
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>old</span> <span class='op'>=</span> <span class='ident'>itimerspec</span>::<span class='ident'>null</span>();
         <span class='kw'>let</span> <span class='ident'>new</span>: <span class='ident'>itimerspec</span> <span class='op'>=</span> <span class='ident'>state</span>.<span class='ident'>into</span>();
-        <span class='ident'>neg_is_err</span>(<span class='kw'>unsafe</span> { <span class='ident'>timerfd_settime</span>(<span class='self'>self</span>.<span class='number'>0</span>, <span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='ident'>new</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>old</span>) })?;
-        <span class='prelude-val'>Ok</span>(<span class='ident'>old</span>.<span class='ident'>into</span>())
+        <span class='ident'>neg_is_err</span>(<span class='kw'>unsafe</span> { <span class='ident'>timerfd_settime</span>(<span class='self'>self</span>.<span class='number'>0</span>, <span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='ident'>new</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>old</span>) })
+            .<span class='ident'>expect</span>(<span class='string'>&quot;Looks like timerfd_settime failed in some undocumented way&quot;</span>);
+        <span class='ident'>old</span>.<span class='ident'>into</span>()
     }
 
     <span class='doccomment'>/// Returns the current `TimerState`.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_state</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>IoResult</span><span class='op'>&lt;</span><span class='ident'>TimerState</span><span class='op'>&gt;</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_state</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>TimerState</span> {
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>state</span> <span class='op'>=</span> <span class='ident'>itimerspec</span>::<span class='ident'>null</span>();
-        <span class='ident'>neg_is_err</span>(<span class='kw'>unsafe</span> { <span class='ident'>timerfd_gettime</span>(<span class='self'>self</span>.<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>state</span>) })?;
-        <span class='prelude-val'>Ok</span>(<span class='ident'>state</span>.<span class='ident'>into</span>())
+        <span class='ident'>neg_is_err</span>(<span class='kw'>unsafe</span> { <span class='ident'>timerfd_gettime</span>(<span class='self'>self</span>.<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>state</span>) })
+            .<span class='ident'>expect</span>(<span class='string'>&quot;Looks like timerfd_gettime failed in some undocumented way&quot;</span>);
+        <span class='ident'>state</span>.<span class='ident'>into</span>()
     }
 
     <span class='doccomment'>/// Read from this timerfd.</span>
     <span class='doccomment'>///</span>
     <span class='doccomment'>/// Returns the number of timer expirations since the last read.</span>
-    <span class='doccomment'>/// If that number is zero, this function blocks until the timer expires</span>
-    <span class='doccomment'>/// (or returns an error if it&#39;s nonblocking).</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>read</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>IoResult</span><span class='op'>&lt;</span><span class='ident'>u64</span><span class='op'>&gt;</span> {
+    <span class='doccomment'>/// If this timerfd is operating in blocking mode (the default), it will</span>
+    <span class='doccomment'>/// not return zero but instead block until the timer has expired at least once.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>read</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>u64</span> {
         <span class='kw'>const</span> <span class='ident'>BUFSIZE</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='number'>8</span>;
         
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>buffer</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='number'>0</span>;
         <span class='kw'>let</span> <span class='ident'>bufptr</span>: <span class='op'>*</span><span class='kw-2'>mut</span> _ <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buffer</span>;
-        <span class='kw'>let</span> <span class='ident'>res</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>libc</span>::<span class='ident'>read</span>(<span class='self'>self</span>.<span class='number'>0</span>, <span class='ident'>bufptr</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>, <span class='ident'>BUFSIZE</span>) };
-        <span class='ident'>neg_is_err</span>(<span class='ident'>res</span> <span class='kw'>as</span> <span class='ident'>i32</span>)?;
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>res</span> <span class='op'>==</span> <span class='ident'>BUFSIZE</span> <span class='kw'>as</span> <span class='ident'>isize</span>);
-        <span class='prelude-val'>Ok</span>(<span class='ident'>buffer</span>)
+        <span class='kw'>loop</span> {
+            <span class='kw'>let</span> <span class='ident'>res</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>libc</span>::<span class='ident'>read</span>(<span class='self'>self</span>.<span class='number'>0</span>, <span class='ident'>bufptr</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>, <span class='ident'>BUFSIZE</span>) };
+            <span class='kw'>match</span> <span class='ident'>res</span> {
+                <span class='number'>8</span> <span class='op'>=&gt;</span> {
+                    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>buffer</span> <span class='op'>!=</span> <span class='number'>0</span>);
+                    <span class='kw'>return</span> <span class='ident'>buffer</span>;
+                }
+                <span class='op'>-</span><span class='number'>1</span> <span class='op'>=&gt;</span> {
+                    <span class='kw'>let</span> <span class='ident'>err</span> <span class='op'>=</span> <span class='ident'>std</span>::<span class='ident'>io</span>::<span class='ident'>Error</span>::<span class='ident'>last_os_error</span>();
+                    <span class='kw'>match</span> <span class='ident'>err</span>.<span class='ident'>kind</span>() {
+                        <span class='ident'>ErrorKind</span>::<span class='ident'>WouldBlock</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='number'>0</span>,
+                        <span class='ident'>ErrorKind</span>::<span class='ident'>Interrupted</span> <span class='op'>=&gt;</span> (),
+                        _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;Unexpected read error: {}&quot;</span>, <span class='ident'>err</span>),
+                    }
+                }
+                _ <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(),
+            }
+        }
     }
 }
 
