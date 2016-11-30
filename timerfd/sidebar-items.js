@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["TimerState","Holds the state of a `TimerFd`."]],"struct":[["TimerFd","Represents a timerfd."]]});
