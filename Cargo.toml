@@ -1,6 +1,8 @@
 [package]
 name = "timerfd"
 description = "An implementation of the linux kernel's timerfd interface"
+repository = "https://github.com/main--/rust-timerfd"
+documentation = "https://main--.github.io/rust-timerfd/timerfd/"
 license = "MIT"
 version = "0.1.0"
 authors = ["main() <main@ehvag.de>"]
