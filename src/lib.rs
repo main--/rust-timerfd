@@ -1,4 +1,4 @@
-//! This crate implements the linux timerfd interface.
+//! A rust interface to the Linux kernel's timerfd API.
 //!
 //! # Example
 //!
@@ -6,22 +6,47 @@
 //! use timerfd::{TimerFd, TimerState};
 //! use std::time::Duration;
 //!
+//! // Create a new timerfd
+//! // (unwrap is actually fine here for most usecases)
 //! let mut tfd = TimerFd::new().unwrap();
-//! assert_eq!(tfd.get_state().unwrap(), TimerState::Disarmed);
-//! tfd.set_state(TimerState::Oneshot(Duration::new(1, 0))).unwrap();
-//! match tfd.get_state().unwrap() {
+//!
+//! // The timer is initially disarmed
+//! assert_eq!(tfd.get_state(), TimerState::Disarmed);
+//!
+//! // Set the timer
+//! tfd.set_state(TimerState::Oneshot(Duration::new(1, 0)));
+//!
+//! // Observe that the timer is now set
+//! match tfd.get_state() {
 //!     TimerState::Oneshot(d) => println!("Remaining: {:?}", d),
 //!     _ => unreachable!(),
 //! }
-//! tfd.read().unwrap();
-//! assert_eq!(tfd.get_state().unwrap(), TimerState::Disarmed);
+//!
+//! // Wait for the remaining time
+//! tfd.read();
+//!
+//! // It was a oneshot timer, so it's now disarmed
+//! assert_eq!(tfd.get_state(), TimerState::Disarmed);
 //! ```
+//!
+//! # Usage
+//!
+//! Unfortunately, this example can't show why you would use
+//! timerfd in the first place: Because it creates a file descriptor
+//! that you can monitor with `select(2)`, `poll(2)` and `epoll(2)`.
+//!
+//! In other words, the only advantage this offers over any other
+//! timer implementation is that it implements the `AsRawFd` trait.
+//!
+//! The file descriptor becomes ready/readable whenever the timer expires.
+
 
 extern crate libc;
 
 use std::os::unix::prelude::*;
 use std::time::Duration;
 use std::io::Result as IoResult;
+use std::io::ErrorKind;
 
 extern "C" {
     fn timerfd_create(clockid: libc::c_int, flags: libc::c_int) -> RawFd;
@@ -74,6 +99,14 @@ impl TimerFd {
     ///
     /// By default, it uses the monotonic clock, is blocking and does not close on exec.
     /// The parameters allow you to change that.
+    ///
+    /// # Errors
+    ///
+    /// On Linux 2.6.26 and earlier, nonblocking and cloexec are not supported and setting them
+    /// will return an error of kind `ErrorKind::InvalidInput`.
+    ///
+    /// This can also fail in various cases of resource exhaustion. Please check
+    /// `timerfd_create(2)` for details.
     pub fn new_custom(realtime_clock: bool, nonblocking: bool, cloexec: bool) -> IoResult<TimerFd> {
         let clock = if realtime_clock { libc::CLOCK_REALTIME } else { libc::CLOCK_MONOTONIC };
 
@@ -97,34 +130,50 @@ impl TimerFd {
     }
 
     /// Sets this timerfd to a given `TimerState` and returns the old state.
-    pub fn set_state(&mut self, state: TimerState) -> IoResult<TimerState> {
+    pub fn set_state(&mut self, state: TimerState) -> TimerState {
         let mut old = itimerspec::null();
         let new: itimerspec = state.into();
-        neg_is_err(unsafe { timerfd_settime(self.0, 0, &new, &mut old) })?;
-        Ok(old.into())
+        neg_is_err(unsafe { timerfd_settime(self.0, 0, &new, &mut old) })
+            .expect("Looks like timerfd_settime failed in some undocumented way");
+        old.into()
     }
 
     /// Returns the current `TimerState`.
-    pub fn get_state(&self) -> IoResult<TimerState> {
+    pub fn get_state(&self) -> TimerState {
         let mut state = itimerspec::null();
-        neg_is_err(unsafe { timerfd_gettime(self.0, &mut state) })?;
-        Ok(state.into())
+        neg_is_err(unsafe { timerfd_gettime(self.0, &mut state) })
+            .expect("Looks like timerfd_gettime failed in some undocumented way");
+        state.into()
     }
 
     /// Read from this timerfd.
     ///
     /// Returns the number of timer expirations since the last read.
-    /// If that number is zero, this function blocks until the timer expires
-    /// (or returns an error if it's nonblocking).
-    pub fn read(&mut self) -> IoResult<u64> {
+    /// If this timerfd is operating in blocking mode (the default), it will
+    /// not return zero but instead block until the timer has expired at least once.
+    pub fn read(&mut self) -> u64 {
         const BUFSIZE: usize = 8;
         
         let mut buffer: u64 = 0;
         let bufptr: *mut _ = &mut buffer;
-        let res = unsafe { libc::read(self.0, bufptr as *mut libc::c_void, BUFSIZE) };
-        neg_is_err(res as i32)?;
-        assert!(res == BUFSIZE as isize);
-        Ok(buffer)
+        loop {
+            let res = unsafe { libc::read(self.0, bufptr as *mut libc::c_void, BUFSIZE) };
+            match res {
+                8 => {
+                    assert!(buffer != 0);
+                    return buffer;
+                }
+                -1 => {
+                    let err = std::io::Error::last_os_error();
+                    match err.kind() {
+                        ErrorKind::WouldBlock => return 0,
+                        ErrorKind::Interrupted => (),
+                        _ => panic!("Unexpected read error: {}", err),
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
     }
 }
 
