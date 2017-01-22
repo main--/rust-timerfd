@@ -47,12 +47,65 @@ use std::os::unix::prelude::*;
 use std::time::Duration;
 use std::io::Result as IoResult;
 use std::io::ErrorKind;
+use std::fmt;
 
 extern "C" {
     fn timerfd_create(clockid: libc::c_int, flags: libc::c_int) -> RawFd;
     fn timerfd_settime(fd: RawFd, flags: libc::c_int,
                        new_value: *const itimerspec, old_value: *mut itimerspec) -> libc::c_int;
     fn timerfd_gettime(fd: RawFd, curr_value: *mut itimerspec) -> libc::c_int;
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub enum ClockId {
+    /// Available clocks:
+    ///
+    /// A settable system-wide real-time clock.
+    Realtime       = libc::CLOCK_REALTIME       as isize,
+
+    /// This clock is like CLOCK_REALTIME, but will wake the system if it is suspended. The
+    /// caller must have the CAP_WAKE_ALARM capability in order to set a timer against this
+    /// clock.
+    RealtimeAlarm  = libc::CLOCK_REALTIME_ALARM as isize,
+
+    /// A nonsettable monotonically increasing clock that measures time from some unspecified
+    /// point in the past that does not change after system startup.
+    Monotonic      = libc::CLOCK_MONOTONIC      as isize,
+
+    /// Like CLOCK_MONOTONIC, this is a monotonically increasing clock. However, whereas the
+    /// CLOCK_MONOTONIC clock does not measure the time while a system is suspended, the
+    /// CLOCK_BOOTTIME clock does include the time during which the system is suspended. This
+    /// is useful for applications that need to be suspend-aware. CLOCK_REALTIME is not
+    /// suitable for such applications, since that clock is affected by discon‐ tinuous
+    /// changes to the system clock.
+    Boottime       = libc::CLOCK_BOOTTIME       as isize,
+
+    /// This clock is like CLOCK_BOOTTIME, but will wake the system if it is suspended. The
+    /// caller must have the CAP_WAKE_ALARM capability in order to set a timer against this
+    /// clock.
+    BoottimeAlarm  = libc::CLOCK_BOOTTIME_ALARM as isize,
+}
+
+fn clock_name (clock: &ClockId) -> &'static str {
+    match *clock {
+        ClockId::Realtime       => "CLOCK_REALTIME",
+        ClockId::RealtimeAlarm  => "CLOCK_REALTIME_ALARM",
+        ClockId::Monotonic      => "CLOCK_MONOTONIC",
+        ClockId::Boottime       => "CLOCK_BOOTTIME",
+        ClockId::BoottimeAlarm  => "CLOCK_BOOTTIME_ALARM",
+    }
+}
+
+impl fmt::Display for ClockId {
+    fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", clock_name(self))
+    }
+}
+
+impl fmt::Debug for ClockId {
+    fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} ({})", self.clone() as libc::c_int, clock_name(self))
+    }
 }
 
 static TFD_CLOEXEC: libc::c_int = 0o2000000;
@@ -107,8 +160,7 @@ impl TimerFd {
     ///
     /// This can also fail in various cases of resource exhaustion. Please check
     /// `timerfd_create(2)` for details.
-    pub fn new_custom(realtime_clock: bool, nonblocking: bool, cloexec: bool) -> IoResult<TimerFd> {
-        let clock = if realtime_clock { libc::CLOCK_REALTIME } else { libc::CLOCK_MONOTONIC };
+    pub fn new_custom(clock: ClockId, nonblocking: bool, cloexec: bool) -> IoResult<TimerFd> {
 
         let mut flags = 0;
         if nonblocking {
@@ -118,7 +170,7 @@ impl TimerFd {
             flags |= TFD_CLOEXEC;
         }
 
-        let fd = neg_is_err(unsafe { timerfd_create(clock, flags) })?;
+        let fd = neg_is_err(unsafe { timerfd_create(clock as libc::c_int, flags) })?;
         Ok(TimerFd(fd))
     }
 
@@ -126,7 +178,7 @@ impl TimerFd {
     ///
     /// Use `new_custom` to specify custom settings.
     pub fn new() -> IoResult<TimerFd> {
-        TimerFd::new_custom(false, false, false)
+        TimerFd::new_custom(ClockId::Monotonic, false, false)
     }
 
     /// Sets this timerfd to a given `TimerState` and returns the old state.

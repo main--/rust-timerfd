@@ -30,8 +30,8 @@ const TS_NULL: timespec = timespec { tv_sec: 0, tv_nsec: 0 };
 impl From<Duration> for timespec {
     fn from(d: Duration) -> timespec {
         timespec {
-            tv_sec: d.as_secs() as i64,
-            tv_nsec: d.subsec_nanos() as i64, // XXX BUG
+            tv_sec: d.as_secs() as libc::time_t,
+            tv_nsec: d.subsec_nanos() as libc::c_long, // XXX BUG
         }
     }
 }
