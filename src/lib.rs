@@ -272,3 +272,27 @@ impl Drop for TimerFd {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    extern crate libc;
+    use super::ClockId;
+    use super::TimerFd;
+    use super::TimerState;
+
+    #[test]
+    fn new_custom_clockid () {
+
+        fn __test_clockid (clockid: ClockId) {
+            let tfd = TimerFd::new_custom(clockid, true, false).unwrap();
+            assert_eq!(tfd.get_state(), TimerState::Disarmed);
+        }
+
+        __test_clockid(ClockId::Realtime);
+        __test_clockid(ClockId::Monotonic);
+        __test_clockid(ClockId::Boottime);
+        //__test_clockid(ClockId::RealtimeAlarm); // requires CAP_WAKE_ALARM
+        //__test_clockid(ClockId::BoottimeAlarm); // requires CAP_WAKE_ALARM
+    }
+}
+
