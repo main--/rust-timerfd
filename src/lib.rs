@@ -3,7 +3,7 @@
 //! # Example
 //!
 //! ```
-//! use timerfd::{TimerFd, TimerState};
+//! use timerfd::{TimerFd, TimerState, SetTimeFlags};
 //! use std::time::Duration;
 //!
 //! // Create a new timerfd
@@ -14,7 +14,7 @@
 //! assert_eq!(tfd.get_state(), TimerState::Disarmed);
 //!
 //! // Set the timer
-//! tfd.set_state(TimerState::Oneshot(Duration::new(1, 0)));
+//! tfd.set_state(TimerState::Oneshot(Duration::new(1, 0)), SetTimeFlags::Default);
 //!
 //! // Observe that the timer is now set
 //! match tfd.get_state() {
@@ -108,8 +108,33 @@ impl fmt::Debug for ClockId {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SetTimeFlags {
+    /// Flags to `timerfd_settime(2)`.
+    ///
+    /// The default is zero, i. e. all bits unset.
+    Default,
+
+    /// Interpret new_value.it_value as an absolute value on the timer's clock. The timer will
+    /// expire when the value of the timer's clock reaches the value specified in
+    /// new_value.it_value.
+    Abstime,
+
+    /// If this flag is specified along with TFD_TIMER_ABSTIME and the clock for this timer is
+    /// CLOCK_REALTIME or CLOCK_REALTIME_ALARM, then mark this timer as cancelable if the
+    /// real-time clock undergoes a discontinuous change (settimeofday(2), clock_settime(2),
+    /// or similar). When such changes occur, a current or future read(2) from the file
+    /// descriptor will fail with the error ECANCELED.
+    ///
+    /// `TFD_TIMER_CANCEL_ON_SET` is useless without `TFD_TIMER_ABSTIME` set, cf. `fs/timerfd.c`.
+    /// Thus `TimerCancelOnSet`` implies `Abstime`.
+    TimerCancelOnSet,
+}
+
 static TFD_CLOEXEC: libc::c_int = 0o2000000;
 static TFD_NONBLOCK: libc::c_int = 0o0004000;
+static TFD_TIMER_ABSTIME: libc::c_int = 0o0000001;
+static TFD_TIMER_CANCEL_ON_SET: libc::c_int = 0o0000002;
 
 mod structs;
 use structs::itimerspec;
@@ -182,10 +207,15 @@ impl TimerFd {
     }
 
     /// Sets this timerfd to a given `TimerState` and returns the old state.
-    pub fn set_state(&mut self, state: TimerState) -> TimerState {
+    pub fn set_state(&mut self, state: TimerState, sflags: SetTimeFlags) -> TimerState {
+        let flags = match sflags {
+            SetTimeFlags::Default => 0,
+            SetTimeFlags::Abstime => TFD_TIMER_ABSTIME,
+            SetTimeFlags::TimerCancelOnSet => TFD_TIMER_ABSTIME | TFD_TIMER_CANCEL_ON_SET,
+        };
         let mut old = itimerspec::null();
         let new: itimerspec = state.into();
-        neg_is_err(unsafe { timerfd_settime(self.0, 0, &new, &mut old) })
+        neg_is_err(unsafe { timerfd_settime(self.0, flags, &new, &mut old) })
             .expect("Looks like timerfd_settime failed in some undocumented way");
         old.into()
     }
