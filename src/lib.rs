@@ -3,7 +3,7 @@
 //! # Example
 //!
 //! ```
-//! use timerfd::{TimerFd, TimerState};
+//! use timerfd::{TimerFd, TimerState, SetTimeFlags};
 //! use std::time::Duration;
 //!
 //! // Create a new timerfd
@@ -14,7 +14,7 @@
 //! assert_eq!(tfd.get_state(), TimerState::Disarmed);
 //!
 //! // Set the timer
-//! tfd.set_state(TimerState::Oneshot(Duration::new(1, 0)));
+//! tfd.set_state(TimerState::Oneshot(Duration::new(1, 0)), SetTimeFlags::Default);
 //!
 //! // Observe that the timer is now set
 //! match tfd.get_state() {
@@ -47,6 +47,7 @@ use std::os::unix::prelude::*;
 use std::time::Duration;
 use std::io::Result as IoResult;
 use std::io::ErrorKind;
+use std::fmt;
 
 extern "C" {
     fn timerfd_create(clockid: libc::c_int, flags: libc::c_int) -> RawFd;
@@ -55,8 +56,85 @@ extern "C" {
     fn timerfd_gettime(fd: RawFd, curr_value: *mut itimerspec) -> libc::c_int;
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub enum ClockId {
+    /// Available clocks:
+    ///
+    /// A settable system-wide real-time clock.
+    Realtime       = libc::CLOCK_REALTIME       as isize,
+
+    /// This clock is like CLOCK_REALTIME, but will wake the system if it is suspended. The
+    /// caller must have the CAP_WAKE_ALARM capability in order to set a timer against this
+    /// clock.
+    RealtimeAlarm  = libc::CLOCK_REALTIME_ALARM as isize,
+
+    /// A nonsettable monotonically increasing clock that measures time from some unspecified
+    /// point in the past that does not change after system startup.
+    Monotonic      = libc::CLOCK_MONOTONIC      as isize,
+
+    /// Like CLOCK_MONOTONIC, this is a monotonically increasing clock. However, whereas the
+    /// CLOCK_MONOTONIC clock does not measure the time while a system is suspended, the
+    /// CLOCK_BOOTTIME clock does include the time during which the system is suspended. This
+    /// is useful for applications that need to be suspend-aware. CLOCK_REALTIME is not
+    /// suitable for such applications, since that clock is affected by discon‐ tinuous
+    /// changes to the system clock.
+    Boottime       = libc::CLOCK_BOOTTIME       as isize,
+
+    /// This clock is like CLOCK_BOOTTIME, but will wake the system if it is suspended. The
+    /// caller must have the CAP_WAKE_ALARM capability in order to set a timer against this
+    /// clock.
+    BoottimeAlarm  = libc::CLOCK_BOOTTIME_ALARM as isize,
+}
+
+fn clock_name (clock: &ClockId) -> &'static str {
+    match *clock {
+        ClockId::Realtime       => "CLOCK_REALTIME",
+        ClockId::RealtimeAlarm  => "CLOCK_REALTIME_ALARM",
+        ClockId::Monotonic      => "CLOCK_MONOTONIC",
+        ClockId::Boottime       => "CLOCK_BOOTTIME",
+        ClockId::BoottimeAlarm  => "CLOCK_BOOTTIME_ALARM",
+    }
+}
+
+impl fmt::Display for ClockId {
+    fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", clock_name(self))
+    }
+}
+
+impl fmt::Debug for ClockId {
+    fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} ({})", self.clone() as libc::c_int, clock_name(self))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SetTimeFlags {
+    /// Flags to `timerfd_settime(2)`.
+    ///
+    /// The default is zero, i. e. all bits unset.
+    Default,
+
+    /// Interpret new_value.it_value as an absolute value on the timer's clock. The timer will
+    /// expire when the value of the timer's clock reaches the value specified in
+    /// new_value.it_value.
+    Abstime,
+
+    /// If this flag is specified along with TFD_TIMER_ABSTIME and the clock for this timer is
+    /// CLOCK_REALTIME or CLOCK_REALTIME_ALARM, then mark this timer as cancelable if the
+    /// real-time clock undergoes a discontinuous change (settimeofday(2), clock_settime(2),
+    /// or similar). When such changes occur, a current or future read(2) from the file
+    /// descriptor will fail with the error ECANCELED.
+    ///
+    /// `TFD_TIMER_CANCEL_ON_SET` is useless without `TFD_TIMER_ABSTIME` set, cf. `fs/timerfd.c`.
+    /// Thus `TimerCancelOnSet`` implies `Abstime`.
+    TimerCancelOnSet,
+}
+
 static TFD_CLOEXEC: libc::c_int = 0o2000000;
 static TFD_NONBLOCK: libc::c_int = 0o0004000;
+static TFD_TIMER_ABSTIME: libc::c_int = 0o0000001;
+static TFD_TIMER_CANCEL_ON_SET: libc::c_int = 0o0000002;
 
 mod structs;
 use structs::itimerspec;
@@ -107,8 +185,7 @@ impl TimerFd {
     ///
     /// This can also fail in various cases of resource exhaustion. Please check
     /// `timerfd_create(2)` for details.
-    pub fn new_custom(realtime_clock: bool, nonblocking: bool, cloexec: bool) -> IoResult<TimerFd> {
-        let clock = if realtime_clock { libc::CLOCK_REALTIME } else { libc::CLOCK_MONOTONIC };
+    pub fn new_custom(clock: ClockId, nonblocking: bool, cloexec: bool) -> IoResult<TimerFd> {
 
         let mut flags = 0;
         if nonblocking {
@@ -118,7 +195,7 @@ impl TimerFd {
             flags |= TFD_CLOEXEC;
         }
 
-        let fd = neg_is_err(unsafe { timerfd_create(clock, flags) })?;
+        let fd = neg_is_err(unsafe { timerfd_create(clock as libc::c_int, flags) })?;
         Ok(TimerFd(fd))
     }
 
@@ -126,14 +203,19 @@ impl TimerFd {
     ///
     /// Use `new_custom` to specify custom settings.
     pub fn new() -> IoResult<TimerFd> {
-        TimerFd::new_custom(false, false, false)
+        TimerFd::new_custom(ClockId::Monotonic, false, false)
     }
 
     /// Sets this timerfd to a given `TimerState` and returns the old state.
-    pub fn set_state(&mut self, state: TimerState) -> TimerState {
+    pub fn set_state(&mut self, state: TimerState, sflags: SetTimeFlags) -> TimerState {
+        let flags = match sflags {
+            SetTimeFlags::Default => 0,
+            SetTimeFlags::Abstime => TFD_TIMER_ABSTIME,
+            SetTimeFlags::TimerCancelOnSet => TFD_TIMER_ABSTIME | TFD_TIMER_CANCEL_ON_SET,
+        };
         let mut old = itimerspec::null();
         let new: itimerspec = state.into();
-        neg_is_err(unsafe { timerfd_settime(self.0, 0, &new, &mut old) })
+        neg_is_err(unsafe { timerfd_settime(self.0, flags, &new, &mut old) })
             .expect("Looks like timerfd_settime failed in some undocumented way");
         old.into()
     }
@@ -190,3 +272,66 @@ impl Drop for TimerFd {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    extern crate libc;
+    use super::{Duration,ClockId,TimerFd,TimerState,SetTimeFlags};
+
+    #[test]
+    fn clockid_new_custom () {
+
+        fn __test_clockid (clockid: ClockId) {
+            let tfd = TimerFd::new_custom(clockid, true, false).unwrap();
+            assert_eq!(tfd.get_state(), TimerState::Disarmed);
+        }
+
+        __test_clockid(ClockId::Realtime);
+        __test_clockid(ClockId::Monotonic);
+        __test_clockid(ClockId::Boottime);
+        //__test_clockid(ClockId::RealtimeAlarm); // requires CAP_WAKE_ALARM
+        //__test_clockid(ClockId::BoottimeAlarm); // requires CAP_WAKE_ALARM
+    }
+
+    const TEST_TIMER_OFFSET: u64 = 100; // seconds from now
+
+    /// trivial monotonic timer some seconds into the future
+    #[test]
+    fn timerfd_settime_flags_default () {
+        let mut tfd = TimerFd::new().unwrap();
+        assert_eq!(tfd.get_state(), TimerState::Disarmed);
+
+        tfd.set_state(TimerState::Oneshot(Duration::new(TEST_TIMER_OFFSET, 0)),
+                      SetTimeFlags::Default);
+        assert!(match tfd.get_state() { TimerState::Oneshot(_) => true, _ => false });
+    }
+
+
+    /// timer set from realtime clock
+    #[test]
+    fn timerfd_settime_flags_abstime () {
+        let mut tfd = TimerFd::new_custom(ClockId::Realtime, true, true).unwrap();
+        assert_eq!(tfd.get_state(), TimerState::Disarmed);
+
+        let mut now = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+        assert_eq!(unsafe { libc::clock_gettime(ClockId::Realtime as libc::c_int, &mut now) }, 0);
+        tfd.set_state(TimerState::Oneshot(Duration::new(now.tv_sec as u64 + TEST_TIMER_OFFSET, 0)),
+                      SetTimeFlags::Abstime);
+        assert!(match tfd.get_state() { TimerState::Oneshot(_) => true, _ => false });
+    }
+
+
+    /// same as abstime, with `TimerCancelOnSet`
+    #[test]
+    fn timerfd_settime_flags_abstime_cancel () {
+        let mut tfd = TimerFd::new_custom(ClockId::Realtime, true, true).unwrap();
+        assert_eq!(tfd.get_state(), TimerState::Disarmed);
+
+        let mut now = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+        assert_eq!(unsafe { libc::clock_gettime(ClockId::Realtime as libc::c_int, &mut now) }, 0);
+        tfd.set_state(TimerState::Oneshot(Duration::new(now.tv_sec as u64 + TEST_TIMER_OFFSET, 0)),
+                      SetTimeFlags::TimerCancelOnSet);
+        assert!(match tfd.get_state() { TimerState::Oneshot(_) => true, _ => false });
+    }
+}
+
