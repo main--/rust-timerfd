@@ -276,12 +276,10 @@ impl Drop for TimerFd {
 #[cfg(test)]
 mod tests {
     extern crate libc;
-    use super::ClockId;
-    use super::TimerFd;
-    use super::TimerState;
+    use super::{Duration,ClockId,TimerFd,TimerState,SetTimeFlags};
 
     #[test]
-    fn new_custom_clockid () {
+    fn clockid_new_custom () {
 
         fn __test_clockid (clockid: ClockId) {
             let tfd = TimerFd::new_custom(clockid, true, false).unwrap();
@@ -293,6 +291,47 @@ mod tests {
         __test_clockid(ClockId::Boottime);
         //__test_clockid(ClockId::RealtimeAlarm); // requires CAP_WAKE_ALARM
         //__test_clockid(ClockId::BoottimeAlarm); // requires CAP_WAKE_ALARM
+    }
+
+    const TEST_TIMER_OFFSET: u64 = 100; // seconds from now
+
+    /// trivial monotonic timer some seconds into the future
+    #[test]
+    fn timerfd_settime_flags_default () {
+        let mut tfd = TimerFd::new().unwrap();
+        assert_eq!(tfd.get_state(), TimerState::Disarmed);
+
+        tfd.set_state(TimerState::Oneshot(Duration::new(TEST_TIMER_OFFSET, 0)),
+                      SetTimeFlags::Default);
+        assert!(match tfd.get_state() { TimerState::Oneshot(_) => true, _ => false });
+    }
+
+
+    /// timer set from realtime clock
+    #[test]
+    fn timerfd_settime_flags_abstime () {
+        let mut tfd = TimerFd::new_custom(ClockId::Realtime, true, true).unwrap();
+        assert_eq!(tfd.get_state(), TimerState::Disarmed);
+
+        let mut now = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+        assert_eq!(unsafe { libc::clock_gettime(ClockId::Realtime as libc::c_int, &mut now) }, 0);
+        tfd.set_state(TimerState::Oneshot(Duration::new(now.tv_sec as u64 + TEST_TIMER_OFFSET, 0)),
+                      SetTimeFlags::Abstime);
+        assert!(match tfd.get_state() { TimerState::Oneshot(_) => true, _ => false });
+    }
+
+
+    /// same as abstime, with `TimerCancelOnSet`
+    #[test]
+    fn timerfd_settime_flags_abstime_cancel () {
+        let mut tfd = TimerFd::new_custom(ClockId::Realtime, true, true).unwrap();
+        assert_eq!(tfd.get_state(), TimerState::Disarmed);
+
+        let mut now = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+        assert_eq!(unsafe { libc::clock_gettime(ClockId::Realtime as libc::c_int, &mut now) }, 0);
+        tfd.set_state(TimerState::Oneshot(Duration::new(now.tv_sec as u64 + TEST_TIMER_OFFSET, 0)),
+                      SetTimeFlags::TimerCancelOnSet);
+        assert!(match tfd.get_state() { TimerState::Oneshot(_) => true, _ => false });
     }
 }
 
