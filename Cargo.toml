@@ -2,10 +2,10 @@
 name = "timerfd"
 description = "A rust interface to the Linux kernel's timerfd API"
 repository = "https://github.com/main--/rust-timerfd"
-documentation = "https://main--.github.io/rust-timerfd/timerfd/"
+documentation = "https://docs.rs/timerfd/"
 license = "MIT"
-version = "0.2.0"
+version = "1.0.0"
 authors = ["main() <main@ehvag.de>"]
 
 [dependencies]
-libc = "0.2.*"
+libc = "0.2"
