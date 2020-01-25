@@ -1,4 +1,5 @@
 use std::time::Duration;
+use std::convert::TryInto;
 
 use TimerState;
 use libc;
@@ -31,14 +32,15 @@ impl From<Duration> for timespec {
     fn from(d: Duration) -> timespec {
         timespec {
             tv_sec: d.as_secs() as libc::time_t,
-            tv_nsec: d.subsec_nanos() as libc::c_long, // XXX BUG
+            tv_nsec: d.subsec_nanos().into(),
         }
     }
 }
 
 impl From<timespec> for Duration {
     fn from(ts: timespec) -> Duration {
-        Duration::new(ts.tv_sec as u64, ts.tv_nsec as u32) // XXX BUG
+        Duration::new(ts.tv_sec as u64, ts.tv_nsec.try_into()
+            .expect("timespec overflow when converting to Duration"))
     }
 }
 
