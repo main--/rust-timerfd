@@ -131,9 +131,7 @@ pub enum SetTimeFlags {
     TimerCancelOnSet,
 }
 
-static TFD_CLOEXEC: libc::c_int = 0o2000000;
-static TFD_NONBLOCK: libc::c_int = 0o0004000;
-static TFD_TIMER_ABSTIME: libc::c_int = 0o0000001;
+use libc::{TFD_CLOEXEC, TFD_NONBLOCK, TFD_TIMER_ABSTIME};
 static TFD_TIMER_CANCEL_ON_SET: libc::c_int = 0o0000002;
 
 mod structs;
