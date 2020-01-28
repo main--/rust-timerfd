@@ -32,7 +32,9 @@ impl From<Duration> for timespec {
     fn from(d: Duration) -> timespec {
         timespec {
             tv_sec: d.as_secs() as libc::time_t,
-            tv_nsec: d.subsec_nanos().into(),
+            // This can theoretically fail on 32-bit (`u32` to `c_long = i32`)
+            tv_nsec: d.subsec_nanos().try_into()
+                .expect("timespec overflow when converting from Duration"),
         }
     }
 }
