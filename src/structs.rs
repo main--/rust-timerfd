@@ -1,8 +1,8 @@
-use std::time::Duration;
 use std::convert::TryInto;
+use std::time::Duration;
 
-use TimerState;
 use libc;
+use TimerState;
 
 // libc timespec is really awkward to work with (no traits etc)
 // so we have our own
@@ -22,18 +22,26 @@ pub struct itimerspec {
 
 impl itimerspec {
     pub fn null() -> itimerspec {
-        itimerspec { it_interval: TS_NULL, it_value: TS_NULL }
+        itimerspec {
+            it_interval: TS_NULL,
+            it_value: TS_NULL,
+        }
     }
 }
 
-const TS_NULL: timespec = timespec { tv_sec: 0, tv_nsec: 0 };
+const TS_NULL: timespec = timespec {
+    tv_sec: 0,
+    tv_nsec: 0,
+};
 
 impl From<Duration> for timespec {
     fn from(d: Duration) -> timespec {
         timespec {
             tv_sec: d.as_secs() as libc::time_t,
             // This can theoretically fail on 32-bit (`u32` to `c_long = i32`)
-            tv_nsec: d.subsec_nanos().try_into()
+            tv_nsec: d
+                .subsec_nanos()
+                .try_into()
                 .expect("timespec overflow when converting from Duration"),
         }
     }
@@ -41,18 +49,21 @@ impl From<Duration> for timespec {
 
 impl From<timespec> for Duration {
     fn from(ts: timespec) -> Duration {
-        Duration::new(ts.tv_sec as u64, ts.tv_nsec.try_into()
-            .expect("timespec overflow when converting to Duration"))
+        Duration::new(
+            ts.tv_sec as u64,
+            ts.tv_nsec
+                .try_into()
+                .expect("timespec overflow when converting to Duration"),
+        )
     }
 }
-
 
 impl From<TimerState> for itimerspec {
     fn from(ts: TimerState) -> itimerspec {
         match ts {
             TimerState::Disarmed => itimerspec {
                 it_value: TS_NULL,
-                it_interval: TS_NULL
+                it_interval: TS_NULL,
             },
             TimerState::Oneshot(d) => itimerspec {
                 it_value: d.into(),
@@ -69,27 +80,29 @@ impl From<TimerState> for itimerspec {
 impl From<itimerspec> for TimerState {
     fn from(its: itimerspec) -> TimerState {
         match its {
-            itimerspec { it_value: TS_NULL, .. } => {
-                TimerState::Disarmed
-            }
-            itimerspec { it_value, it_interval: TS_NULL } => {
-                TimerState::Oneshot(it_value.into())
-            }
-            itimerspec { it_value, it_interval } => {
-                TimerState::Periodic {
-                    current: it_value.into(),
-                    interval: it_interval.into(),
-                }
-            }
+            itimerspec {
+                it_value: TS_NULL, ..
+            } => TimerState::Disarmed,
+            itimerspec {
+                it_value,
+                it_interval: TS_NULL,
+            } => TimerState::Oneshot(it_value.into()),
+            itimerspec {
+                it_value,
+                it_interval,
+            } => TimerState::Periodic {
+                current: it_value.into(),
+                interval: it_interval.into(),
+            },
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use TimerState;
     use super::itimerspec;
     use std::time::Duration;
+    use TimerState;
 
     #[test]
     fn convert_disarmed() {
