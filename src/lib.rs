@@ -231,7 +231,7 @@ impl TimerFd {
     /// Returns the number of timer expirations since the last read.
     /// If this timerfd is operating in blocking mode (the default), it will
     /// not return zero but instead block until the timer has expired at least once.
-    pub fn read(&mut self) -> u64 {
+    pub fn read(&self) -> u64 {
         const BUFSIZE: usize = 8;
         
         let mut buffer: u64 = 0;
