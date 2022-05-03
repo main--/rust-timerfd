@@ -182,7 +182,7 @@ impl TimerFd {
             ClockId::Boottime => TimerfdClockId::Boottime,
             ClockId::BoottimeAlarm => TimerfdClockId::BoottimeAlarm,
         };
-        let fd = rustix::time::timerfd_create(clock as TimerfdClockId, flags)?;
+        let fd = rustix::time::timerfd_create(clock, flags)?;
         Ok(TimerFd(fd))
     }
 
