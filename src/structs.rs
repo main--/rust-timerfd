@@ -7,6 +7,9 @@ use TimerState;
 const TS_NULL: Timespec = Timespec { tv_sec: 0, tv_nsec: 0 };
 
 fn to_timespec(d: Duration) -> Timespec {
+    // We don't need to check for overflow in the `nsec` conversion,
+    // because `Duration` guarantees that `subsec_nanos()` is always
+    // less than a billion, which will always fit into `tv_nsec`.
     Timespec {
         tv_sec: d.as_secs().try_into().unwrap(),
         tv_nsec: d.subsec_nanos() as _,
@@ -14,6 +17,9 @@ fn to_timespec(d: Duration) -> Timespec {
 }
 
 fn from_timespec(ts: Timespec) -> Duration {
+    // We don't need to check for overflow here, since these are only
+    // used to convert `Timespec` values we get from the OS, which we
+    // assume are valid.
     Duration::new(ts.tv_sec as u64, ts.tv_nsec as u32)
 }
 
