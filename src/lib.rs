@@ -41,36 +41,29 @@
 //! The file descriptor becomes ready/readable whenever the timer expires.
 
 
-extern crate libc;
+extern crate rustix;
 
 use std::os::unix::prelude::*;
 use std::time::Duration;
 use std::io::Result as IoResult;
-use std::io::ErrorKind;
 use std::fmt;
-
-extern "C" {
-    fn timerfd_create(clockid: libc::c_int, flags: libc::c_int) -> RawFd;
-    fn timerfd_settime(fd: RawFd, flags: libc::c_int,
-                       new_value: *const itimerspec, old_value: *mut itimerspec) -> libc::c_int;
-    fn timerfd_gettime(fd: RawFd, curr_value: *mut itimerspec) -> libc::c_int;
-}
+use rustix::time::{Itimerspec, TimerfdClockId};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum ClockId {
     /// Available clocks:
     ///
     /// A settable system-wide real-time clock.
-    Realtime       = libc::CLOCK_REALTIME       as isize,
+    Realtime       = TimerfdClockId::Realtime   as isize,
 
     /// This clock is like CLOCK_REALTIME, but will wake the system if it is suspended. The
     /// caller must have the CAP_WAKE_ALARM capability in order to set a timer against this
     /// clock.
-    RealtimeAlarm  = libc::CLOCK_REALTIME_ALARM as isize,
+    RealtimeAlarm  = TimerfdClockId::RealtimeAlarm as isize,
 
     /// A nonsettable monotonically increasing clock that measures time from some unspecified
     /// point in the past that does not change after system startup.
-    Monotonic      = libc::CLOCK_MONOTONIC      as isize,
+    Monotonic      = TimerfdClockId::Monotonic  as isize,
 
     /// Like CLOCK_MONOTONIC, this is a monotonically increasing clock. However, whereas the
     /// CLOCK_MONOTONIC clock does not measure the time while a system is suspended, the
@@ -78,12 +71,12 @@ pub enum ClockId {
     /// is useful for applications that need to be suspend-aware. CLOCK_REALTIME is not
     /// suitable for such applications, since that clock is affected by discon‐ tinuous
     /// changes to the system clock.
-    Boottime       = libc::CLOCK_BOOTTIME       as isize,
+    Boottime       = TimerfdClockId::Boottime   as isize,
 
     /// This clock is like CLOCK_BOOTTIME, but will wake the system if it is suspended. The
     /// caller must have the CAP_WAKE_ALARM capability in order to set a timer against this
     /// clock.
-    BoottimeAlarm  = libc::CLOCK_BOOTTIME_ALARM as isize,
+    BoottimeAlarm  = TimerfdClockId::BoottimeAlarm as isize,
 }
 
 fn clock_name (clock: &ClockId) -> &'static str {
@@ -104,7 +97,7 @@ impl fmt::Display for ClockId {
 
 impl fmt::Debug for ClockId {
     fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} ({})", self.clone() as libc::c_int, clock_name(self))
+        write!(f, "{} ({})", self.clone() as isize, clock_name(self))
     }
 }
 
@@ -131,11 +124,9 @@ pub enum SetTimeFlags {
     TimerCancelOnSet,
 }
 
-use libc::{TFD_CLOEXEC, TFD_NONBLOCK, TFD_TIMER_ABSTIME};
-static TFD_TIMER_CANCEL_ON_SET: libc::c_int = 0o0000002;
+use rustix::time::{TimerfdFlags, TimerfdTimerFlags};
 
 mod structs;
-use structs::itimerspec;
 
 /// Holds the state of a `TimerFd`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -160,15 +151,7 @@ pub enum TimerState {
 /// See also [`timerfd_create(2)`].
 ///
 /// [`timerfd_create(2)`]: http://man7.org/linux/man-pages/man2/timerfd_create.2.html
-pub struct TimerFd(RawFd);
-
-fn neg_is_err(i: libc::c_int) -> IoResult<libc::c_int> {
-    if i >= 0 {
-        Ok(i)
-    } else {
-        Err(std::io::Error::last_os_error())
-    }
-}
+pub struct TimerFd(rustix::io::OwnedFd);
 
 impl TimerFd {
     /// Creates a new `TimerFd`.
@@ -184,16 +167,22 @@ impl TimerFd {
     /// This can also fail in various cases of resource exhaustion. Please check
     /// `timerfd_create(2)` for details.
     pub fn new_custom(clock: ClockId, nonblocking: bool, cloexec: bool) -> IoResult<TimerFd> {
-
-        let mut flags = 0;
+        let mut flags = TimerfdFlags::empty();
         if nonblocking {
-            flags |= TFD_NONBLOCK;
+            flags |= TimerfdFlags::NONBLOCK;
         }
         if cloexec {
-            flags |= TFD_CLOEXEC;
+            flags |= TimerfdFlags::CLOEXEC;
         }
 
-        let fd = neg_is_err(unsafe { timerfd_create(clock as libc::c_int, flags) })?;
+        let clock = match clock {
+            ClockId::Realtime => TimerfdClockId::Realtime,
+            ClockId::RealtimeAlarm => TimerfdClockId::RealtimeAlarm,
+            ClockId::Monotonic => TimerfdClockId::Monotonic,
+            ClockId::Boottime => TimerfdClockId::Boottime,
+            ClockId::BoottimeAlarm => TimerfdClockId::BoottimeAlarm,
+        };
+        let fd = rustix::time::timerfd_create(clock, flags)?;
         Ok(TimerFd(fd))
     }
 
@@ -207,21 +196,21 @@ impl TimerFd {
     /// Sets this timerfd to a given `TimerState` and returns the old state.
     pub fn set_state(&mut self, state: TimerState, sflags: SetTimeFlags) -> TimerState {
         let flags = match sflags {
-            SetTimeFlags::Default => 0,
-            SetTimeFlags::Abstime => TFD_TIMER_ABSTIME,
-            SetTimeFlags::TimerCancelOnSet => TFD_TIMER_ABSTIME | TFD_TIMER_CANCEL_ON_SET,
+            SetTimeFlags::Default => TimerfdTimerFlags::empty(),
+            SetTimeFlags::Abstime => TimerfdTimerFlags::ABSTIME,
+            SetTimeFlags::TimerCancelOnSet => {
+                TimerfdTimerFlags::ABSTIME | TimerfdTimerFlags::CANCEL_ON_SET
+            }
         };
-        let mut old = itimerspec::null();
-        let new: itimerspec = state.into();
-        neg_is_err(unsafe { timerfd_settime(self.0, flags, &new, &mut old) })
+        let new: Itimerspec = state.into();
+        let old = rustix::time::timerfd_settime(&self.0, flags, &new)
             .expect("Looks like timerfd_settime failed in some undocumented way");
         old.into()
     }
 
     /// Returns the current `TimerState`.
     pub fn get_state(&self) -> TimerState {
-        let mut state = itimerspec::null();
-        neg_is_err(unsafe { timerfd_gettime(self.0, &mut state) })
+        let state = rustix::time::timerfd_gettime(&self.0)
             .expect("Looks like timerfd_gettime failed in some undocumented way");
         state.into()
     }
@@ -232,25 +221,17 @@ impl TimerFd {
     /// If this timerfd is operating in blocking mode (the default), it will
     /// not return zero but instead block until the timer has expired at least once.
     pub fn read(&self) -> u64 {
-        const BUFSIZE: usize = 8;
-        
-        let mut buffer: u64 = 0;
-        let bufptr: *mut _ = &mut buffer;
+        let mut buffer = [0_u8; 8];
         loop {
-            let res = unsafe { libc::read(self.0, bufptr as *mut libc::c_void, BUFSIZE) };
-            match res {
-                8 => {
-                    assert!(buffer != 0);
-                    return buffer;
+            match rustix::io::read(&self.0, &mut buffer) {
+                Ok(8) => {
+                    let value = u64::from_ne_bytes(buffer);
+                    assert_ne!(value, 0);
+                    return value;
                 }
-                -1 => {
-                    let err = std::io::Error::last_os_error();
-                    match err.kind() {
-                        ErrorKind::WouldBlock => return 0,
-                        ErrorKind::Interrupted => (),
-                        _ => panic!("Unexpected read error: {}", err),
-                    }
-                }
+                Err(rustix::io::Error::WOULDBLOCK) => return 0,
+                Err(rustix::io::Error::INTR) => (),
+                Err(e) => panic!("Unexpected read error: {}", e),
                 _ => unreachable!(),
             }
         }
@@ -259,28 +240,20 @@ impl TimerFd {
 
 impl AsRawFd for TimerFd {
     fn as_raw_fd(&self) -> RawFd {
-        self.0
+        self.0.as_raw_fd()
     }
 }
 
 impl FromRawFd for TimerFd {
     unsafe fn from_raw_fd(fd: RawFd) -> Self {
-        TimerFd(fd)
-    }
-}
-
-impl Drop for TimerFd {
-    fn drop(&mut self) {
-        unsafe {
-            libc::close(self.0);
-        }
+        TimerFd(FromRawFd::from_raw_fd(fd))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    extern crate libc;
-    use super::{Duration,ClockId,TimerFd,TimerState,SetTimeFlags};
+    extern crate rustix;
+    use super::{ClockId, Duration, SetTimeFlags, TimerFd, TimerState};
 
     #[test]
     fn clockid_new_custom () {
@@ -317,13 +290,11 @@ mod tests {
         let mut tfd = TimerFd::new_custom(ClockId::Realtime, true, true).unwrap();
         assert_eq!(tfd.get_state(), TimerState::Disarmed);
 
-        let mut now = libc::timespec { tv_sec: 0, tv_nsec: 0 };
-        assert_eq!(unsafe { libc::clock_gettime(ClockId::Realtime as libc::c_int, &mut now) }, 0);
+        let now = rustix::time::clock_gettime(rustix::time::ClockId::Realtime);
         tfd.set_state(TimerState::Oneshot(Duration::new(now.tv_sec as u64 + TEST_TIMER_OFFSET, 0)),
                       SetTimeFlags::Abstime);
         assert!(match tfd.get_state() { TimerState::Oneshot(_) => true, _ => false });
     }
-
 
     /// same as abstime, with `TimerCancelOnSet`
     #[test]
@@ -331,8 +302,7 @@ mod tests {
         let mut tfd = TimerFd::new_custom(ClockId::Realtime, true, true).unwrap();
         assert_eq!(tfd.get_state(), TimerState::Disarmed);
 
-        let mut now = libc::timespec { tv_sec: 0, tv_nsec: 0 };
-        assert_eq!(unsafe { libc::clock_gettime(ClockId::Realtime as libc::c_int, &mut now) }, 0);
+        let now = rustix::time::clock_gettime(rustix::time::ClockId::Realtime);
         tfd.set_state(TimerState::Oneshot(Duration::new(now.tv_sec as u64 + TEST_TIMER_OFFSET, 0)),
                       SetTimeFlags::TimerCancelOnSet);
         assert!(match tfd.get_state() { TimerState::Oneshot(_) => true, _ => false });

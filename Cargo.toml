@@ -8,4 +8,4 @@ version = "1.2.0"
 authors = ["main() <main@ehvag.de>"]
 
 [dependencies]
-libc = "0.2.31"
+rustix = "0.34.2"
