@@ -8,4 +8,4 @@ version = "1.2.0"
 authors = ["main() <main@ehvag.de>"]
 
 [dependencies]
-rustix = "0.34.2"
+rustix = { version = "0.35.6", features = ["time"] }

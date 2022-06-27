@@ -229,8 +229,8 @@ impl TimerFd {
                     assert_ne!(value, 0);
                     return value;
                 }
-                Err(rustix::io::Error::WOULDBLOCK) => return 0,
-                Err(rustix::io::Error::INTR) => (),
+                Err(rustix::io::Errno::WOULDBLOCK) => return 0,
+                Err(rustix::io::Errno::INTR) => (),
                 Err(e) => panic!("Unexpected read error: {}", e),
                 _ => unreachable!(),
             }
