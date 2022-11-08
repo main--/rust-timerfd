@@ -151,7 +151,7 @@ pub enum TimerState {
 /// See also [`timerfd_create(2)`].
 ///
 /// [`timerfd_create(2)`]: http://man7.org/linux/man-pages/man2/timerfd_create.2.html
-pub struct TimerFd(rustix::io::OwnedFd);
+pub struct TimerFd(rustix::fd::OwnedFd);
 
 impl TimerFd {
     /// Creates a new `TimerFd`.
