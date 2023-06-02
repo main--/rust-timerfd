@@ -39,7 +39,7 @@
 //! timer implementation is that it implements the `AsRawFd` trait.
 //!
 //! The file descriptor becomes ready/readable whenever the timer expires.
-
+#![warn(missing_debug_implementations)]
 
 extern crate rustix;
 
@@ -151,6 +151,7 @@ pub enum TimerState {
 /// See also [`timerfd_create(2)`].
 ///
 /// [`timerfd_create(2)`]: http://man7.org/linux/man-pages/man2/timerfd_create.2.html
+#[derive(Debug)]
 pub struct TimerFd(rustix::fd::OwnedFd);
 
 impl TimerFd {
