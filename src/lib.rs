@@ -35,8 +35,8 @@
 //! timerfd in the first place: Because it creates a file descriptor
 //! that you can monitor with `select(2)`, `poll(2)` and `epoll(2)`.
 //!
-//! In other words, the only advantage this offers over any other
-//! timer implementation is that it implements the `AsRawFd` trait.
+//! In other words, the primary advantage this offers over any other
+//! timer implementation is that it implements the `AsFd`/`AsRawFd` traits.
 //!
 //! The file descriptor becomes ready/readable whenever the timer expires.
 #![warn(missing_debug_implementations)]
@@ -47,6 +47,7 @@ use std::os::unix::prelude::*;
 use std::time::Duration;
 use std::io::Result as IoResult;
 use std::fmt;
+use rustix::fd::{AsFd, BorrowedFd, OwnedFd};
 use rustix::time::{Itimerspec, TimerfdClockId};
 
 #[derive(Clone, PartialEq, Eq)]
@@ -152,7 +153,7 @@ pub enum TimerState {
 ///
 /// [`timerfd_create(2)`]: http://man7.org/linux/man-pages/man2/timerfd_create.2.html
 #[derive(Debug)]
-pub struct TimerFd(rustix::fd::OwnedFd);
+pub struct TimerFd(OwnedFd);
 
 impl TimerFd {
     /// Creates a new `TimerFd`.
@@ -248,6 +249,18 @@ impl AsRawFd for TimerFd {
 impl FromRawFd for TimerFd {
     unsafe fn from_raw_fd(fd: RawFd) -> Self {
         TimerFd(FromRawFd::from_raw_fd(fd))
+    }
+}
+
+impl AsFd for TimerFd {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.0.as_fd()
+    }
+}
+
+impl From<TimerFd> for OwnedFd {
+    fn from(fd: TimerFd) -> OwnedFd {
+        fd.0
     }
 }
 
